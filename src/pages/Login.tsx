@@ -8,52 +8,74 @@ import {
   Divider,
 } from "@mui/material";
 import { useEffect, useState } from "react";
-
-type LoginFormValues = {
-  username: string;
-  password: string;
-};
+import {
+  useLoginUserMutation,
+  useLoginWithPasskeyMutation,
+} from "../api/query/auth";
+import { useToast } from "../providers/ToastProvider";
+import type { LoginPayload } from "../types";
+import { useSearchParams } from "react-router-dom";
 
 export default function Login() {
-  const { control, handleSubmit } = useForm<LoginFormValues>({
+  const { control, handleSubmit } = useForm<LoginPayload>({
     defaultValues: { username: "", password: "" },
   });
+
+  const { showToast } = useToast();
+  const [searchParams] = useSearchParams();
+  const redirect_uri = searchParams.get("redirect_uri") || "/";
+  const prefilledUsername = searchParams.get("username") || "";
 
   const [webauthnSupported, setWebauthnSupported] = useState(false);
   const [platformAuthenticatorAvailable, setPlatformAuthenticatorAvailable] =
     useState(false);
 
+  const loginMutation = useLoginUserMutation();
+  const loginPasskeyMutation = useLoginWithPasskeyMutation();
+
   useEffect(() => {
     if (typeof window !== "undefined" && window.PublicKeyCredential) {
       setWebauthnSupported(true);
 
-      // optional: check if platform authenticator is available
       window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
         .then((available) => {
           setPlatformAuthenticatorAvailable(available);
         })
-        .catch(() => {
-          setPlatformAuthenticatorAvailable(false);
-        });
+        .catch(() => setPlatformAuthenticatorAvailable(false));
     }
   }, []);
 
-  const onSubmit = (data: LoginFormValues) => {
-    console.log("Login form data:", data);
-    // TODO: call password login mutation
+  const onSubmit = (data: LoginPayload) => {
+    loginMutation.mutate(data, {
+      onSuccess: (res) => {
+        showToast(res.message, "success");
+        // Redirect to main app
+        window.location.href = redirect_uri;
+      },
+    });
   };
 
   const handleWebAuthnLogin = async () => {
-    console.log("Attempting WebAuthn login...");
-    // TODO: implement navigator.credentials.get(...) with backend challenge
+    const username =
+      prefilledUsername ||
+      (document.getElementById("username") as HTMLInputElement)?.value;
+    if (!username) {
+      showToast("Please enter username first", "warning");
+      return;
+    }
+
+    loginPasskeyMutation.mutate(username, {
+      onSuccess: (res) => {
+        showToast(res.message, "success");
+        window.location.href = redirect_uri;
+      },
+    });
   };
 
   return (
     <Box
       display="flex"
       justifyContent="center"
-      alignContent="center"
-      alignSelf="center"
       alignItems="center"
       minHeight="100vh"
       minWidth="100vw"
@@ -64,21 +86,28 @@ export default function Login() {
         </Typography>
 
         <form onSubmit={handleSubmit(onSubmit)}>
-          <Controller
-            name="username"
-            control={control}
-            rules={{ required: "Username / Email / Phone is required" }}
-            render={({ field, fieldState }) => (
-              <TextField
-                {...field}
-                label="Username / Email / Phone"
-                fullWidth
-                margin="normal"
-                error={!!fieldState.error}
-                helperText={fieldState.error?.message}
-              />
-            )}
-          />
+          {prefilledUsername ? (
+            <Typography variant="subtitle1" sx={{ mb: 2, textAlign: "center" }}>
+              please enter password for: <strong>{prefilledUsername}</strong>
+            </Typography>
+          ) : (
+            <Controller
+              name="username"
+              control={control}
+              rules={{ required: "Username / Email / Phone is required" }}
+              render={({ field, fieldState }) => (
+                <TextField
+                  {...field}
+                  id="username"
+                  label="Username / Email / Phone"
+                  fullWidth
+                  margin="normal"
+                  error={!!fieldState.error}
+                  helperText={fieldState.error?.message}
+                />
+              )}
+            />
+          )}
 
           <Controller
             name="password"
@@ -108,7 +137,6 @@ export default function Login() {
           </Button>
         </form>
 
-        {/* Divider for clarity */}
         {webauthnSupported && (
           <>
             <Divider sx={{ my: 2 }}>OR</Divider>

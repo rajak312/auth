@@ -1,12 +1,16 @@
-import {
-  startAuthentication,
-  startRegistration,
-} from "@simplewebauthn/browser";
 import type {
   AuthenticationResponseJSON,
   RegistrationResponseJSON,
 } from "@simplewebauthn/browser";
 import { api } from "./index";
+import type {
+  LoginPayload,
+  LoginResponse,
+  RegisterPayload,
+  RegisterResponse,
+  VerifyWebAuthAuthenticationResponse,
+  VerifyWebAuthRegisterResponse,
+} from "../../types";
 
 export const getWebAuthRegisterOptions = async (username: string) => {
   return (
@@ -19,14 +23,8 @@ export const getWebAuthRegisterOptions = async (username: string) => {
 export const verifyWebAuthRegistration = async (
   username: string,
   options: RegistrationResponseJSON
-) => {
+): Promise<VerifyWebAuthRegisterResponse> => {
   return (await api.post(`auth/register/verify/${username}`, options)).data;
-};
-
-export const startWebAuthRegistration = async (username: string) => {
-  const optionsJSON = await getWebAuthRegisterOptions(username);
-  const response = await startRegistration({ optionsJSON });
-  return await verifyWebAuthRegistration(username, response);
 };
 
 export const generateAuthenticationOptions = async (username: string) => {
@@ -36,12 +34,13 @@ export const generateAuthenticationOptions = async (username: string) => {
 export const verifyAuthentication = async (
   username: string,
   options: AuthenticationResponseJSON
-) => {
+): Promise<VerifyWebAuthAuthenticationResponse> => {
   return (await api.post(`auth/authenticate/verify/${username}`, options)).data;
 };
 
-export const startWebAuthAuthentication = async (username: string) => {
-  const optionsJSON = await generateAuthenticationOptions(username);
-  const response = await startAuthentication({ optionsJSON });
-  return verifyAuthentication(username, response);
-};
+export const register = async (
+  payload: RegisterPayload
+): Promise<RegisterResponse> => (await api.post("auth/register", payload)).data;
+
+export const login = async (payload: LoginPayload): Promise<LoginResponse> =>
+  (await api.post("auth/login", payload)).data;

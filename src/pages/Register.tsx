@@ -1,26 +1,55 @@
 import { useForm, Controller } from "react-hook-form";
 import { Box, Button, TextField, Typography, Paper } from "@mui/material";
+import { useRegisterUserMutation } from "../api/query/auth";
+import { useToast } from "../providers/ToastProvider";
+import type { RegisterPayload } from "../types/auth";
+import { useSearchParams } from "react-router-dom";
 
-type RegisterFormValues = {
-  username: string;
-  password: string;
-  email?: string;
-  phoneNumber?: string;
+type RegisterFormValues = RegisterPayload & {
+  confirmPassword: string;
 };
 
 export default function Register() {
-  const { control, handleSubmit } = useForm<RegisterFormValues>({
+  const { showToast } = useToast();
+  const [searchParams] = useSearchParams();
+  const redirect_uri = searchParams.get("redirect_uri") || "/";
+
+  const registerMutation = useRegisterUserMutation();
+
+  const { control, handleSubmit, watch } = useForm<RegisterFormValues>({
     defaultValues: {
       username: "",
       password: "",
+      confirmPassword: "",
       email: "",
       phoneNumber: "",
     },
   });
 
+  watch("password");
+
   const onSubmit = (data: RegisterFormValues) => {
-    console.log("Register form data:", data);
-    // later call mutation
+    if (data.password !== data.confirmPassword) {
+      showToast("Passwords do not match", "error");
+      return;
+    }
+
+    const payload: RegisterPayload = {
+      username: data.username,
+      password: data.password,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+    };
+
+    registerMutation.mutate(payload, {
+      onSuccess: (res) => {
+        showToast(res.message, "success");
+        const loginUrl = `/login?redirect_uri=${encodeURIComponent(
+          redirect_uri
+        )}`;
+        window.location.href = loginUrl;
+      },
+    });
   };
 
   return (
@@ -60,6 +89,23 @@ export default function Register() {
               <TextField
                 {...field}
                 label="Password"
+                type="password"
+                fullWidth
+                margin="normal"
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message}
+              />
+            )}
+          />
+
+          <Controller
+            name="confirmPassword"
+            control={control}
+            rules={{ required: "Confirm Password is required" }}
+            render={({ field, fieldState }) => (
+              <TextField
+                {...field}
+                label="Confirm Password"
                 type="password"
                 fullWidth
                 margin="normal"
